@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>灯塔</title>
+		<!-- 引入样式 -->
+		<link rel="stylesheet" href="./lib/element-ui.css">
+		<style>
+			#app{
+				width: 96vw;
+				margin:0 auto 100px auto;
+			}
+			.custom-tree-node {
+			    flex: 1;
+			    display: flex;
+			    align-items: center;
+			    justify-content: space-between;
+			    font-size: 14px;
+			    padding-right: 8px;
+				border-bottom:1px solid #f0f0f0;
+			  }
+			  .el-icon-circle-plus-outline,
+			  .el-icon-edit-outline,
+			  .el-icon-delete{
+				  font-size:20px;
+			  }
+			  .el-tree-node__content{
+				  min-height: 47px;
+			  }
+			  .el-input{
+				  width:99%;
+			  }
+		</style>
+	</head>
+	<body>
+		<div id="app">
+			<el-tree :indent="36" :data="data" default-expand-all :props="defaultProps" @node-click="handleNodeClick">
+				<div class="custom-tree-node" slot-scope="{ node, data }">
+					<div v-show="!data.visible" >{{ node.label }}</div>
+					<el-input v-show="data.visible"  v-model="node.data.label" @keyup.enter.native="inputBlur(node,data)" @blur="inputBlur(node,data)"></el-input>
+					<div>
+						<!-- 新增 -->
+						<el-button icon="el-icon-circle-plus-outline" type="text"   @click.native.stop="clickAdd(data)" ></el-button>
+						
+						<!-- 编辑 -->
+						<el-button icon="el-icon-edit-outline" type="text" @click.native.stop="clickEdit(node,data)" ></el-button>
+						
+						<!-- 删除 -->
+						<el-button :disabled="disabledDel(data)"  icon="el-icon-delete" type="text"   @click.native.stop="clickDel(node, data)" ></el-button>
+					</div>
+				</div>
+			</el-tree>
+		</div>
+	</body>
+	<script src="lib/vue.js"></script>
+	<script src="lib/element-ui.js"></script>
+	<script src="lib/axios.js"></script>
+	<script>
+		new Vue({
+			el: '#app',
+			data() {
+				return {
+					ids:[],
+					data: [{
+						label: '灯塔',
+						id: 1,
+						visible:false,
+						children: []
+					}],
+					defaultProps: {
+						children: 'children',
+						label: 'label'
+					}
+				}
+			},
+			created() {
+				this.getList()
+			},
+			methods: {
+				disabledDel(data){
+					let children;
+					if(data.children instanceof Array){
+						return Boolean(data.children.length)
+					}else{
+						return false;
+					}
+					return data.id==1||children;
+				},
+				getList(){
+					axios({
+					  method: 'get',
+					  url: 'http://localhost:3060/api/getList'
+					}).then(res=>{
+						this.data = res.data.data;
+					})
+				},
+				handleNodeClick(node, data) {
+					// console.log(node, data);
+				},
+				clickAdd(data) {
+					axios({
+					  method: 'get',
+					  url: 'http://localhost:3060/api/add',
+					  params:{
+						  label:'',
+						  pid:data.id,
+						  visible:1,
+					  }
+					}).then(res=>{
+						const newChild = {
+							id: res.data.data.id,
+							label: '',
+							visible:true,
+							children: []
+						};
+						if (!data.children) {
+							this.$set(data, 'children', []);
+						}
+						data.children.push(newChild);
+					})
+				},
+				clickEdit(node){
+					node.data.visible = true;
+				},
+				clickDel(node, data) {
+					this.ids.push(data.id);
+					this.getTreeIds(data);
+					
+					axios({
+					  method: 'get',
+					  url: 'http://localhost:3060/api/del',
+					  params:{
+						  id:this.ids.join(',')
+					  }
+					}).then(res=>{
+						const parent = node.parent;
+						const children = parent.data.children || parent.data;
+						const index = children.findIndex(d => d.id === data.id);
+						children.splice(index, 1);
+					})
+				},
+				// 失去焦点调用编辑接口
+				inputBlur(node,data){
+					console.log('===',node,data)
+					axios({
+					  method: 'get',
+					  url: 'http://localhost:3060/api/edit',
+					  params:{
+						  label:data.label,
+						  id:data.id,
+						  pid:data.pid,
+						  visible:0,
+					  },
+					}).then(res=>{
+						node.data.visible = 0
+					})
+				},
+				getTreeIds(data){
+					if(data.children instanceof Array){
+						data.children.forEach(item=>{
+							this.ids.push(item.id);
+							this.getTreeIds(item)
+						})
+					}
+				}
+			}
+		})
+	</script>
+</html>
