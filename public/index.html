@@ -37,7 +37,7 @@
 			<el-tree :indent="36" :data="data" default-expand-all :props="defaultProps" @node-click="handleNodeClick">
 				<div class="custom-tree-node" slot-scope="{ node, data }">
 					<div v-show="!data.visible" >{{ node.label }}</div>
-					<el-input v-show="data.visible"  v-model="node.data.label" @keyup.enter.native="inputBlur(node,data)" @blur="inputBlur(node,data)"></el-input>
+					<el-input :ref="'id'+data.id" v-show="data.visible"  v-model="node.data.label" @keyup.enter.native="inputEnter(node,data)" @blur="inputBlur(node,data)"></el-input>
 					<div>
 						<!-- 新增 -->
 						<el-button icon="el-icon-circle-plus-outline" type="text"   @click.native.stop="clickAdd(data)" ></el-button>
@@ -78,13 +78,14 @@
 			},
 			methods: {
 				disabledDel(data){
-					let children;
-					if(data.children instanceof Array){
-						return Boolean(data.children.length)
-					}else{
-						return false;
-					}
-					return data.id==1||children;
+					// let children;
+					// if(data.children instanceof Array){
+					// 	return Boolean(data.children.length)
+					// }else{
+					// 	return false;
+					// }
+					// return data.id==1||children;
+					return data.id==1
 				},
 				getList(){
 					axios({
@@ -95,7 +96,7 @@
 					})
 				},
 				handleNodeClick(node, data) {
-					// console.log(node, data);
+				
 				},
 				clickAdd(data) {
 					axios({
@@ -110,6 +111,7 @@
 						const newChild = {
 							id: res.data.data.id,
 							label: '',
+							pid:data.id,
 							visible:true,
 							children: []
 						};
@@ -133,6 +135,7 @@
 						  id:this.ids.join(',')
 					  }
 					}).then(res=>{
+						this.ids = [];
 						const parent = node.parent;
 						const children = parent.data.children || parent.data;
 						const index = children.findIndex(d => d.id === data.id);
@@ -141,7 +144,6 @@
 				},
 				// 失去焦点调用编辑接口
 				inputBlur(node,data){
-					console.log('===',node,data)
 					axios({
 					  method: 'get',
 					  url: 'http://localhost:3060/api/edit',
@@ -152,7 +154,39 @@
 						  visible:0,
 					  },
 					}).then(res=>{
-						node.data.visible = 0
+						node.data.visible = 0;
+					})
+				},
+				/*
+				*name:回车，调用编辑接口并新增一行
+				*1、enter事件触发 data.visible =0 会触发失焦，会触发this.inputBlur()这个方法；
+				*2、增加一个同级数据，并获取焦点
+				*/
+				inputEnter(node,data){
+					node.data.visible = 0;
+					axios({
+					  method: 'get',
+					  url: 'http://localhost:3060/api/add',
+					  params:{
+						  label:'',
+						  pid:data.pid,
+						  visible:1,
+					  }
+					}).then(res=>{
+						const newChild = {
+							id: res.data.data.id,
+							label: '',
+							pid:data.pid,
+							visible:true,
+							children: []
+						};
+						if (!data.children) {
+							this.$set(data, 'children', []);
+						}
+						node.parent.data.children.push(newChild);
+						this.$nextTick(()=>{
+							this.$refs['id'+res.data.data.id].focus()
+						})
 					})
 				},
 				getTreeIds(data){
